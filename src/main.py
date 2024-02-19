@@ -1,29 +1,30 @@
+from dotenv import load_dotenv
+import os
+import pprint
+import random
 import flet as ft
 from app.task import Task
+from carousel import Carousel
+from database import add_task
+from database import get_tasks
 
-# import psycopg2
+load_dotenv()
+DEBUG = (os.getenv('DEBUG').lower() == 'true')
 
-# try:
-#     conn = psycopg2.connect(
-#         dbname="flet", user="saleor", password="123", host="127.0.0.1"
-#     )
-#     cursor = conn.cursor()
-#     print('connection to pg')
-#     cursor.execute(
-#         'INSERT INTO tasks (name, comment, priority) VALUES (%s, %s, %s)',
-#         ('first', 'comment2', 5)
-#     )
-#     cursor.execute("SELECT * FROM tasks;")
-#     # print(cursor.fetchall())
-#     conn.commit()
 
-# except Exception as e:
-#     # в случае сбоя подключения будет выведено сообщение  в STDOUT
-#     print(e)
-#     print('Can`t establish connection to database')
-
-# cursor.close()  # закрываем курсор
-# conn.close()    # закрываем подключение
+if DEBUG:
+    v_data = [
+        (
+            'id' + str(i),
+            'task' + str(i),
+            'task_comment' + str(i),
+            random.randint(1, 4)
+        )
+        for i in range(5)]
+    v_data_from_bd = v_data
+    print(v_data_from_bd, ' from bd')
+else:
+    v_data_from_bd = get_tasks()
 
 
 class SliderPage():
@@ -33,13 +34,14 @@ class SliderPage():
                 # ft.Text("Hello!", style=ft.TextThemeStyle.HEADLINE_MEDIUM),
                 ft.Row(
                     [
-                        ft.Container(
-                            expand=1
-                        ),
+                        # ft.Container(
+                        #     expand=1
+                        # ),
                         ft.Container(
                             ft.Text(
-                                value=name, style=ft.TextThemeStyle.HEADLINE_MEDIUM,
-                                size=48,
+                                value=name,
+                                theme_style=ft.TextThemeStyle.HEADLINE_MEDIUM,
+                                size=42,
                                 weight=ft.FontWeight.W_900,
                                 italic=True,
                             ),
@@ -54,13 +56,13 @@ class SliderPage():
                             expand=1,
                         ),
                         ft.Container(
-                            expand=7,
+                            expand=15,
                             content=ft.Text(
                                 value=comment,
-                                style=ft.TextThemeStyle.HEADLINE_MEDIUM,
-                                size=28,
+                                theme_style=ft.TextThemeStyle.HEADLINE_MEDIUM,
+                                size=22,
                                 italic=True,
-                                color=ft.colors.BLUE_300,
+                                color=ft.colors.BLUE_700,
                                 max_lines=3
                             )
                         ),
@@ -75,11 +77,11 @@ class SliderPage():
                         ft.Container(
                             expand=1,
                             content=ft.Text(
-                                value=", pr - " + str(priority),
-                                style=ft.TextThemeStyle.HEADLINE_MEDIUM,
-                                size=28,
+                                value="p:" + str(priority),
+                                theme_style=ft.TextThemeStyle.HEADLINE_MEDIUM,
+                                size=22,
                                 italic=True,
-                                color=ft.colors.BLUE_300,
+                                color=ft.colors.GREEN_400,
                             )
                         ),
                     ],
@@ -145,11 +147,6 @@ class TodoApp(ft.UserControl):
             right=True,
             on_click=self.show_task_create_modal_click
         )
-        # self.new_task = ft.TextField(
-        #     hint_text="What needs to be done?",
-        #     on_submit=self.add_clicked,
-        #     expand=True
-        # )
 
         self.filter = ft.Tabs(
             scrollable=False,
@@ -182,8 +179,9 @@ class TodoApp(ft.UserControl):
                         ),
                         ft.Container(
                             ft.Text(
-                                value="Hello!", style=ft.TextThemeStyle.HEADLINE_MEDIUM,
-                                size=48,
+                                value="Hello!",
+                                theme_style=ft.TextThemeStyle.HEADLINE_MEDIUM,
+                                size=42,
                                 weight=ft.FontWeight.W_900,
                                 italic=True,
                             ),
@@ -200,10 +198,11 @@ class TodoApp(ft.UserControl):
                         ft.Container(
                             expand=7,
                             content=ft.Text(
-                                value="123456789", style=ft.TextThemeStyle.HEADLINE_MEDIUM,
-                                size=28,
+                                value="123456789",
+                                theme_style=ft.TextThemeStyle.HEADLINE_MEDIUM,
+                                size=22,
                                 italic=True,
-                                color=ft.colors.BLUE_300,
+                                color=ft.colors.BLUE_700,
                             )
                         ),
                     ],
@@ -224,6 +223,7 @@ class TodoApp(ft.UserControl):
             switch_in_curve=ft.AnimationCurve.BOUNCE_OUT,
             switch_out_curve=ft.AnimationCurve.BOUNCE_IN,
         )
+
         self.switcher_block = ft.Row(
             [
                 ft.Container(
@@ -258,7 +258,8 @@ class TodoApp(ft.UserControl):
             controls=[
                 ft.Row(
                     [ft.Text(
-                        value="Todos", style=ft.TextThemeStyle.HEADLINE_MEDIUM
+                        value="Todos",
+                        theme_style=ft.TextThemeStyle.HEADLINE_MEDIUM
                     )],
                     alignment=ft.MainAxisAlignment.CENTER,
                 ),
@@ -282,6 +283,10 @@ class TodoApp(ft.UserControl):
                                 ft.OutlinedButton(
                                     text="Clear completed",
                                     on_click=self.clear_clicked
+                                ),
+                                ft.OutlinedButton(
+                                    text="refresh_task",
+                                    on_click=self.refresh_carousel
                                 ),
                             ],
                         ),
@@ -307,14 +312,26 @@ class TodoApp(ft.UserControl):
 
     async def add_task_create_modal(self, e):
         if self.new_task_name_modal_field.value:
+            task_name = self.new_task_name_modal_field.value
+            task_comment = self.new_task_description_modal_field.value
+            task_priority = int(self.new_task_priority_modal_field.value)
+
             task = Task(
-                self.new_task_name_modal_field.value,
+                task_name,
                 self.task_status_change,
                 self.task_delete,
-                comment=self.new_task_description_modal_field.value
+                task_priority,
+                task_comment
             )
             self.tasks.controls.append(task)
+            task_item = ('id0000', task_name, task_comment, task_priority)
+            self.page.carousel.items[task_priority].append(
+                {'task': task_item, 'visible': 1, 'viewed': 0}
+            )
+            self.page.carousel.vision_count += 1
+            pprint.pprint(self.page.carousel.items)
 
+            add_task(task_name, task_comment, task_priority)
             self.new_task_name_modal_field.value = ""
             self.new_task_description_modal_field.value = ""
             self.new_task_priority_modal_field.value = ""
@@ -348,30 +365,20 @@ class TodoApp(ft.UserControl):
             if task.completed:
                 await self.task_delete(task)
 
+    async def refresh_carousel(self, e):
+        self.page.carousel.refresh()
+        await self.animate_next(e)
+
     async def animate_next(self, e):
-        if self.cursor_tasks < len(self.tasks.controls) - 1:
-            self.cursor_tasks += 1
-        else:
-            self.cursor_tasks = 0
-        text = self.tasks.controls[self.cursor_tasks].task_name
-        comment = self.tasks.controls[self.cursor_tasks].task_comment
-        priority = self.tasks.controls[self.cursor_tasks].task_priority
+        task = self.page.carousel.get_slide()
+        _, text, comment, priority = task['task']
         slider_page = SliderPage(text, comment, priority)
         self.switcher.content = slider_page.context
+
         await self.switcher.update_async()
 
     async def animate_prev(self, e):
-        if self.cursor_tasks < 1:
-            self.cursor_tasks = len(self.tasks.controls) - 1
-        else:
-            self.cursor_tasks -= 1
-        text = self.tasks.controls[self.cursor_tasks].task_name
-        comment = self.tasks.controls[self.cursor_tasks].task_comment
-        priority = self.tasks.controls[self.cursor_tasks].task_priority
-        slider_page = SliderPage(text, comment, priority)
-
-        self.switcher.content = slider_page.context
-        await self.switcher.update_async()
+        pass
 
     async def update_async(self):
         status = self.filter.tabs[self.filter.selected_index].text
@@ -389,7 +396,22 @@ class TodoApp(ft.UserControl):
         await super().update_async()
 
 
+def connect_to_db():
+    pass
+
+
+def create_carousel():
+    carousel = Carousel()
+    for item in v_data_from_bd:
+        if item:  # todo добавить проверку на актуальность
+            carousel.items[item[3]].append({'task': item, 'visible': 1, 'viewed': 0})
+            carousel.vision_count += 1
+    return carousel
+
+
 async def main(page: ft.Page):
+    connect_to_db()
+    page.carousel = create_carousel()
     page.title = "ToDo App"
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.scroll = ft.ScrollMode.ADAPTIVE
