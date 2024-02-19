@@ -5,6 +5,8 @@ name = "pypi"
 
 [packages]
 flet = "*"
+mypy = "*"
+python-dotenv = "*"
 
 [dev-packages]
 
