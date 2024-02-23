@@ -163,3 +163,5 @@ cython_debug/
 backlog.md
 *.db
 *.sqlite
+my_database.db
+my_database.sqlite

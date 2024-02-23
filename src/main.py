@@ -1,8 +1,11 @@
+import asyncio
 from dotenv import load_dotenv
 import os
 import pprint
 import random
 import flet as ft
+from app.utils.pomodoro import draw_pomodoro_view
+from app.utils.pomodoro import Pomodoro
 from app.task import Task
 from carousel import Carousel
 from database import add_task
@@ -247,6 +250,12 @@ class TodoApp(ft.UserControl):
             ],
             height=200,
         )
+        self.pomodoro = ft.Row(
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            width=200,
+            controls=draw_pomodoro_view(self, "start_pomodoro"),
+        )
 
         self.tasks = ft.Column()
 
@@ -274,6 +283,7 @@ class TodoApp(ft.UserControl):
                         self.filter,
                         self.filter_important,
                         self.switcher_block,
+                        self.pomodoro,
                         self.tasks,
                         ft.Row(
                             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -368,6 +378,58 @@ class TodoApp(ft.UserControl):
     async def refresh_carousel(self, e):
         self.page.carousel.refresh()
         await self.animate_next(e)
+
+    async def pomodoro_start(self, e):
+        pomodoro_item = Pomodoro()
+        self.current_pomodoro_item = pomodoro_item
+        time_remainder = pomodoro_item.get_remainder(counter=0)
+        self.pomodoro.controls = draw_pomodoro_view(
+            self, time_remainder, refresh=True, pause=True, stop=True, start=False
+        )
+        await self.update_async()
+        while pomodoro_item.time_remainder > -1 and self.current_pomodoro_item is pomodoro_item:
+            await asyncio.sleep(1)
+            time_remainder = pomodoro_item.get_remainder()
+            self.pomodoro.controls[0] = ft.OutlinedButton(
+                text=time_remainder,
+                on_click=self.pomodoro_start
+            )
+            if self.current_pomodoro_item is pomodoro_item:
+                await self.update_async()
+
+    async def pomodoro_stop(self, e):
+        self.current_pomodoro_item = Pomodoro()
+        text_pomodoro = 'Start Pomodoro'
+        self.pomodoro.controls = draw_pomodoro_view(
+            self, text_pomodoro, start=True)
+
+        await self.update_async()
+
+    async def pomodoro_pause(self, e):
+        self.current_pomodoro_item = Pomodoro(time_volume=self.current_pomodoro_item.time_remainder)
+        time_remainder = self.current_pomodoro_item.get_remainder(counter=0)
+        self.pomodoro.controls = draw_pomodoro_view(
+            self, time_remainder, refresh=True, play=True, stop=True, start=False,
+        )
+
+        await self.update_async()
+
+    async def pomodoro_play(self, e):
+        pomodoro_item = self.current_pomodoro_item
+        time_remainder = pomodoro_item.get_remainder(counter=0)
+        self.pomodoro.controls = draw_pomodoro_view(
+            self, time_remainder, refresh=True, pause=True, stop=True, start=False
+        )
+        await self.update_async()
+        while pomodoro_item.time_remainder > -1 and self.current_pomodoro_item is pomodoro_item:
+            await asyncio.sleep(1)
+            time_remainder = pomodoro_item.get_remainder()
+            self.pomodoro.controls[0] = ft.OutlinedButton(
+                text=time_remainder,
+                on_click=self.pomodoro_start
+            )
+            if self.current_pomodoro_item is pomodoro_item:
+                await self.update_async()
 
     async def animate_next(self, e):
         task = self.page.carousel.get_slide()
